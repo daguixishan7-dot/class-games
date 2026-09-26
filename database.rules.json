@@ -1,0 +1,26 @@
+{
+  "rules": {
+    "rooms": {
+      "$code": {
+        ".read": "$code.matches(/^[A-Z]{4}$/)",
+        ".write": "$code.matches(/^[A-Z]{4}$/)",
+        "players": {
+          "$pid": {
+            ".validate": "newData.hasChildren(['name']) && newData.child('name').isString() && newData.child('name').val().length <= 10"
+          }
+        },
+        "games": {
+          "$gid": {
+            "chains": {
+              "$chain": {
+                "$turn": {
+                  ".validate": "newData.hasChildren(['t', 'v']) && newData.child('v').isString() && newData.child('v').val().length <= 210000"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

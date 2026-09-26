@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>クラスのゲーム</title>
+<meta name="theme-color" content="#20243f">
+<link rel="icon" href="data:,">
+<style>
+:root{--bg:#20243f;--card:#2c3157;--text:#f5f6ff;--muted:#b3b8e0}
+*{box-sizing:border-box;margin:0;padding:0}
+body{min-height:100vh;min-height:100dvh;background:var(--bg);color:var(--text);
+  font-family:system-ui,-apple-system,"Hiragino Sans","Noto Sans JP",sans-serif;
+  padding:28px 16px calc(28px + env(safe-area-inset-bottom))}
+.wrap{max-width:520px;margin:0 auto;display:flex;flex-direction:column;gap:14px}
+h1{font-size:26px;font-weight:900;letter-spacing:.04em}
+.lead{color:var(--muted);font-size:14px;margin-bottom:6px}
+a.game{display:flex;gap:14px;align-items:center;background:var(--card);border-radius:20px;padding:16px;text-decoration:none;color:inherit;
+  box-shadow:0 3px 0 rgba(0,0,0,.25);transition:transform .1s}
+a.game:active{transform:translateY(2px)}
+.icon{width:64px;height:64px;border-radius:16px;display:flex;align-items:center;justify-content:center;font-size:34px;flex:none}
+.g1 .icon{background:linear-gradient(135deg,#9775fa,#4dabf7)}
+.g2 .icon{background:linear-gradient(135deg,#ffa94d,#e8590c)}
+.g3 .icon{background:linear-gradient(135deg,#ffd43b,#ff6b4a)}
+.name{font-size:19px;font-weight:800}
+.desc{font-size:13px;color:var(--muted);margin-top:4px;line-height:1.6}
+.tag{display:inline-block;font-size:11px;font-weight:700;border-radius:999px;padding:2px 8px;margin-left:6px;vertical-align:2px;background:#454b80;color:#dfe2ff}
+.foot{font-size:12px;color:var(--muted);text-align:center;margin-top:10px;line-height:1.7}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>クラスのゲーム</h1>
+  <p class="lead">登録なし・ダウンロードなし。スマホでそのまま遊べます。</p>
+
+  <a class="game g1" href="blocks/">
+    <div class="icon">🧩</div>
+    <div><div class="name">スキマうめ<span class="tag">ひとりで</span></div>
+    <div class="desc">ブロックを置いて、たて・よこの列をそろえて消す。置き場所がなくなったらおしまい。</div></div>
+  </a>
+  <a class="game g2" href="merge/">
+    <div class="icon">🏀</div>
+    <div><div class="name">体育倉庫<span class="tag">ひとりで</span></div>
+    <div class="desc">同じボールをぶつけると合体して大きくなる。目指せ運動会の大玉。</div></div>
+  </a>
+  <a class="game g3" href="draw/">
+    <div class="icon">🎨</div>
+    <div><div class="name">らくがき伝言<span class="tag">みんなで</span></div>
+    <div class="desc">お題 → 絵 → 答え → 絵…と回す伝言ゲーム。最後にどう変わったかを全員で見る。2人から。</div></div>
+  </a>
+
+  <p class="foot">スコアはこの端末の中にだけ保存されます。</p>
+</div>
+</body>
+</html>

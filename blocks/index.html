@@ -1,0 +1,442 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no">
+<title>スキマうめ</title>
+<meta name="theme-color" content="#1b2142">
+<link rel="icon" href="data:,">
+<style>
+:root{
+  --bg:#1b2142; --panel:#252c55; --text:#f4f5ff; --muted:#a9aed6;
+  --accent:#ffd84d; --good:#69db7c;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%;background:var(--bg);color:var(--text);
+  font-family:system-ui,-apple-system,"Hiragino Sans","Noto Sans JP",sans-serif;
+  overscroll-behavior:none;-webkit-user-select:none;user-select:none;-webkit-touch-callout:none}
+body{display:flex;flex-direction:column;height:100vh;height:100dvh;overflow:hidden}
+header{display:flex;align-items:center;justify-content:space-between;padding:10px 16px 0;gap:8px}
+header a,header button{color:var(--muted);font-size:14px;text-decoration:none;background:none;border:0;padding:6px 4px;cursor:pointer}
+header h1{font-size:16px;font-weight:700;letter-spacing:.05em}
+#hud{text-align:center;padding:4px 16px 0}
+#score{font-size:44px;font-weight:800;line-height:1.1;font-variant-numeric:tabular-nums}
+#bestRow{font-size:13px;color:var(--muted);display:flex;align-items:center;justify-content:center;gap:8px}
+#bestBar{width:120px;height:6px;border-radius:3px;background:#39407a;overflow:hidden}
+#bestFill{height:100%;width:0;background:var(--accent);transition:width .3s}
+#stage{flex:1;position:relative;min-height:0}
+canvas{position:absolute;inset:0;width:100%;height:100%;touch-action:none;display:block}
+#over{position:fixed;inset:0;background:rgba(10,12,30,.72);display:none;align-items:center;justify-content:center;padding:16px;z-index:5}
+#over.show{display:flex}
+.card{background:var(--panel);border-radius:20px;padding:24px 20px;width:min(340px,100%);text-align:center;box-shadow:0 10px 40px rgba(0,0,0,.4)}
+.card h2{font-size:22px;margin-bottom:8px}
+.card .big{font-size:52px;font-weight:800;font-variant-numeric:tabular-nums}
+.card .sub{color:var(--muted);font-size:14px;margin:4px 0 16px}
+.badge{display:inline-block;background:var(--accent);color:#3b2f00;font-weight:800;border-radius:999px;padding:4px 12px;font-size:14px;margin-bottom:6px}
+.btns{display:flex;flex-direction:column;gap:10px}
+.btn{font:inherit;font-size:17px;font-weight:700;border:0;border-radius:14px;padding:14px;cursor:pointer}
+.btn.primary{background:var(--accent);color:#3b2f00}
+.btn.ghost{background:#39407a;color:var(--text)}
+#toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%);background:#000c;color:#fff;padding:10px 16px;border-radius:999px;font-size:14px;opacity:0;transition:opacity .25s;pointer-events:none;z-index:9}
+#toast.show{opacity:1}
+</style>
+</head>
+<body>
+<header>
+  <a href="../">← ゲーム一覧</a>
+  <h1>スキマうめ</h1>
+  <button id="muteBtn" aria-label="音のオンオフ">🔊</button>
+</header>
+<div id="hud">
+  <div id="score">0</div>
+  <div id="bestRow"><span id="bestText">ベスト 0</span><div id="bestBar"><div id="bestFill"></div></div></div>
+</div>
+<div id="stage"><canvas id="cv"></canvas></div>
+
+<div id="over" role="dialog" aria-modal="true">
+  <div class="card">
+    <div id="newBest" class="badge" hidden>自己ベスト更新！</div>
+    <h2>おしまい！</h2>
+    <div class="big" id="finalScore">0</div>
+    <div class="sub" id="finalSub"></div>
+    <div class="btns">
+      <button class="btn primary" id="retryBtn">もう一回</button>
+      <button class="btn ghost" id="shareBtn">スコアを送る</button>
+    </div>
+  </div>
+</div>
+<div id="toast"></div>
+
+<script>
+(() => {
+'use strict';
+const N = 8;
+const COLORS = ['#ff6b6b','#ffa94d','#ffd43b','#69db7c','#38d9a9','#4dabf7','#9775fa','#f783ac'];
+const SAVE_KEY = 'sukima.save.v1', BEST_KEY = 'sukima.best', MUTE_KEY = 'sukima.mute';
+
+// ---- ストレージ（使えない環境でも落ちないように） ----
+const store = {
+  get(k){ try { return localStorage.getItem(k); } catch { return null; } },
+  set(k,v){ try { localStorage.setItem(k,v); } catch {} },
+  del(k){ try { localStorage.removeItem(k); } catch {} },
+};
+
+// ---- ピースの形 ----
+const BASES = [
+  {c:[[0,0]], w:2},
+  {c:[[0,0],[0,1]], w:3},
+  {c:[[0,0],[0,1],[0,2]], w:3},
+  {c:[[0,0],[0,1],[0,2],[0,3]], w:2.5},
+  {c:[[0,0],[0,1],[0,2],[0,3],[0,4]], w:1.5},
+  {c:[[0,0],[0,1],[1,0],[1,1]], w:3},
+  {c:[[0,0],[0,1],[0,2],[1,0],[1,1],[1,2],[2,0],[2,1],[2,2]], w:1},
+  {c:[[0,0],[1,0],[1,1]], w:3},
+  {c:[[0,0],[1,0],[2,0],[2,1]], w:2},
+  {c:[[0,0],[0,1],[0,2],[1,1]], w:2},
+  {c:[[0,1],[0,2],[1,0],[1,1]], w:1.5},
+  {c:[[0,0],[1,0],[2,0],[2,1],[2,2]], w:1.2},
+  {c:[[0,0],[0,1],[0,2],[1,0],[1,1],[1,2]], w:1.2},
+];
+function norm(cells){
+  const mr = Math.min(...cells.map(p=>p[0])), mc = Math.min(...cells.map(p=>p[1]));
+  return cells.map(([r,c])=>[r-mr,c-mc]).sort((a,b)=>a[0]-b[0]||a[1]-b[1]);
+}
+function variants(cells){
+  const out = new Map(); let cur = cells;
+  for (let m=0;m<2;m++){
+    for (let i=0;i<4;i++){
+      cur = cur.map(([r,c])=>[c,-r]);
+      const n = norm(cur); out.set(JSON.stringify(n), n);
+    }
+    cur = cur.map(([r,c])=>[r,-c]);
+  }
+  return [...out.values()];
+}
+const SHAPES = [];
+BASES.forEach(b => { const vs = variants(b.c); vs.forEach(v => SHAPES.push({cells:v, w:b.w/vs.length})); });
+const TOTAL_W = SHAPES.reduce((s,x)=>s+x.w,0);
+function randomPiece(){
+  let t = Math.random()*TOTAL_W;
+  for (const s of SHAPES){ t -= s.w; if (t <= 0) return makePiece(s.cells); }
+  return makePiece(SHAPES[0].cells);
+}
+function makePiece(cells){
+  return { cells, rows: Math.max(...cells.map(p=>p[0]))+1, cols: Math.max(...cells.map(p=>p[1]))+1,
+           color: COLORS[Math.floor(Math.random()*COLORS.length)] };
+}
+
+// ---- ゲームの状態 ----
+let grid, tray, score, best, combo, calmMoves, over;
+best = parseInt(store.get(BEST_KEY) || '0', 10) || 0;
+let muted = store.get(MUTE_KEY) === '1';
+
+function emptyGrid(){ return Array.from({length:N}, () => Array(N).fill(null)); }
+function canPlace(p, r, c, g = grid){
+  for (const [dr,dc] of p.cells){
+    const rr = r+dr, cc = c+dc;
+    if (rr<0||cc<0||rr>=N||cc>=N||g[rr][cc]) return false;
+  }
+  return true;
+}
+function fitsAnywhere(p){
+  for (let r=0;r<=N-p.rows;r++) for (let c=0;c<=N-p.cols;c++) if (canPlace(p,r,c)) return true;
+  return false;
+}
+function newTray(){
+  let set;
+  for (let i=0;i<30;i++){
+    set = [randomPiece(), randomPiece(), randomPiece()];
+    if (set.some(fitsAnywhere)) break;
+  }
+  return set;
+}
+function newGame(){
+  grid = emptyGrid(); score = 0; combo = 0; calmMoves = 0; over = false;
+  tray = newTray(); save(); updateHud();
+}
+function save(){
+  if (over) { store.del(SAVE_KEY); return; }
+  store.set(SAVE_KEY, JSON.stringify({grid, tray, score, combo, calmMoves}));
+}
+function load(){
+  try {
+    const s = JSON.parse(store.get(SAVE_KEY) || 'null');
+    if (!s || !Array.isArray(s.grid) || s.grid.length !== N || !Array.isArray(s.tray)) return false;
+    grid = s.grid; tray = s.tray; score = s.score|0; combo = s.combo|0; calmMoves = s.calmMoves|0; over = false;
+    if (tray.every(p=>!p)) tray = newTray();
+    return true;
+  } catch { return false; }
+}
+
+// ---- 音 ----
+let actx = null;
+function beep(freq, dur=0.08, type='sine', vol=0.15, delay=0){
+  if (muted) return;
+  try {
+    actx = actx || new (window.AudioContext||window.webkitAudioContext)();
+    const t = actx.currentTime + delay;
+    const o = actx.createOscillator(), g = actx.createGain();
+    o.type = type; o.frequency.setValueAtTime(freq, t);
+    g.gain.setValueAtTime(vol, t); g.gain.exponentialRampToValueAtTime(0.001, t+dur);
+    o.connect(g).connect(actx.destination); o.start(t); o.stop(t+dur+0.02);
+  } catch {}
+}
+const NOTES = [523,587,659,784,880,988,1047,1175];
+
+// ---- 画面の寸法 ----
+const cv = document.getElementById('cv'), ctx = cv.getContext('2d');
+const stage = document.getElementById('stage');
+let W, H, dpr, cell, bx, by, bs, slotY, slotH, slotW, trayCell;
+function layout(){
+  dpr = Math.min(window.devicePixelRatio || 1, 3);
+  W = stage.clientWidth; H = stage.clientHeight;
+  cv.width = Math.round(W*dpr); cv.height = Math.round(H*dpr);
+  bs = Math.min(W - 32, H * 0.64, 460);
+  cell = bs / N;
+  bx = (W - bs) / 2; by = Math.max(8, (H - bs - cell*3.4) / 2);
+  slotY = by + bs + cell*0.5; slotH = cell*2.9; slotW = bs/3;
+  trayCell = Math.min(cell*0.52, (slotW - 14)/5);
+}
+window.addEventListener('resize', layout);
+
+// ---- 描画 ----
+function roundRect(x,y,w,h,r){
+  ctx.beginPath(); ctx.moveTo(x+r,y); ctx.arcTo(x+w,y,x+w,y+h,r); ctx.arcTo(x+w,y+h,x,y+h,r);
+  ctx.arcTo(x,y+h,x,y,r); ctx.arcTo(x,y,x+w,y,r); ctx.closePath();
+}
+function shade(hex, amt){
+  const n = parseInt(hex.slice(1),16);
+  let r=(n>>16)&255, g=(n>>8)&255, b=n&255;
+  const f = v => Math.max(0, Math.min(255, Math.round(amt<0 ? v*(1+amt) : v+(255-v)*amt)));
+  return `rgb(${f(r)},${f(g)},${f(b)})`;
+}
+function tile(x, y, s, color, alpha=1){
+  const pad = Math.max(1, s*0.05), r = s*0.2;
+  ctx.globalAlpha = alpha;
+  ctx.fillStyle = shade(color, -0.25); roundRect(x+pad, y+pad, s-pad*2, s-pad*2, r); ctx.fill();
+  ctx.fillStyle = color; roundRect(x+pad, y+pad, s-pad*2, s-pad*2-s*0.09, r); ctx.fill();
+  ctx.fillStyle = 'rgba(255,255,255,.28)'; roundRect(x+pad+s*0.12, y+pad+s*0.08, s-pad*2-s*0.24, s*0.14, s*0.07); ctx.fill();
+  ctx.globalAlpha = 1;
+}
+
+let drag = null;            // {idx, x, y, offY, snap:{r,c}|null}
+let clearing = [];          // {r,c,color,t0}
+let popups = [];            // {text,x,y,t0,color,size}
+
+function previewLines(p, r, c){
+  const g = grid.map(row => row.slice());
+  for (const [dr,dc] of p.cells) g[r+dr][c+dc] = p.color;
+  const rows = [], cols = [];
+  for (let i=0;i<N;i++){
+    if (g[i].every(Boolean)) rows.push(i);
+    if (g.every(row => row[i])) cols.push(i);
+  }
+  return {rows, cols};
+}
+
+function draw(now){
+  ctx.setTransform(dpr,0,0,dpr,0,0);
+  ctx.clearRect(0,0,W,H);
+  // 盤
+  ctx.fillStyle = '#131936'; roundRect(bx-6, by-6, bs+12, bs+12, 14); ctx.fill();
+  for (let r=0;r<N;r++) for (let c=0;c<N;c++){
+    ctx.fillStyle = '#232b50';
+    roundRect(bx+c*cell+1.5, by+r*cell+1.5, cell-3, cell-3, cell*0.16); ctx.fill();
+  }
+  // 置く予定の場所と、消える列の予告
+  let hl = null;
+  if (drag && drag.snap){
+    const p = tray[drag.idx];
+    hl = previewLines(p, drag.snap.r, drag.snap.c);
+    hl.color = p.color;
+  }
+  for (let r=0;r<N;r++) for (let c=0;c<N;c++){
+    const v = grid[r][c]; if (!v) continue;
+    const lit = hl && (hl.rows.includes(r) || hl.cols.includes(c));
+    tile(bx+c*cell, by+r*cell, cell, lit ? hl.color : v);
+  }
+  if (drag && drag.snap){
+    const p = tray[drag.idx];
+    for (const [dr,dc] of p.cells){
+      const r = drag.snap.r+dr, c = drag.snap.c+dc;
+      const lit = hl.rows.includes(r) || hl.cols.includes(c);
+      tile(bx+c*cell, by+r*cell, cell, p.color, lit ? 1 : 0.45);
+    }
+  }
+  // 消えるアニメーション
+  clearing = clearing.filter(e => now - e.t0 < 320);
+  for (const e of clearing){
+    const k = (now - e.t0)/320, s = cell*(1-k*0.7);
+    ctx.save(); ctx.translate(bx+e.c*cell+cell/2, by+e.r*cell+cell/2);
+    tile(-s/2, -s/2, s, e.color, 1-k);
+    ctx.restore();
+  }
+  // 手持ちのピース
+  for (let i=0;i<3;i++){
+    const p = tray[i]; if (!p || (drag && drag.idx===i)) continue;
+    const fits = fitsAnywhere(p);
+    const cx = bx + slotW*i + slotW/2, cy = slotY + slotH/2;
+    const x0 = cx - p.cols*trayCell/2, y0 = cy - p.rows*trayCell/2;
+    for (const [r,c] of p.cells) tile(x0+c*trayCell, y0+r*trayCell, trayCell, fits ? p.color : '#5c6394', fits ? 1 : 0.6);
+  }
+  // つかんでいるピース
+  if (drag){
+    const p = tray[drag.idx];
+    const x0 = drag.x - p.cols*cell/2, y0 = drag.y - drag.offY - p.rows*cell;
+    for (const [r,c] of p.cells) tile(x0+c*cell, y0+r*cell, cell, p.color, 0.95);
+  }
+  // 得点の吹き出し
+  popups = popups.filter(e => now - e.t0 < 1100);
+  for (const e of popups){
+    const k = (now - e.t0)/1100;
+    ctx.globalAlpha = 1 - k*k;
+    ctx.font = `800 ${e.size}px system-ui, sans-serif`; ctx.textAlign = 'center';
+    ctx.lineWidth = 5; ctx.strokeStyle = 'rgba(0,0,0,.45)';
+    ctx.strokeText(e.text, e.x, e.y - k*40);
+    ctx.fillStyle = e.color; ctx.fillText(e.text, e.x, e.y - k*40);
+    ctx.globalAlpha = 1;
+  }
+}
+function loop(now){ draw(now); requestAnimationFrame(loop); }
+
+// ---- 操作 ----
+function slotAt(x, y){
+  if (y < slotY - cell*0.4 || y > slotY + slotH + cell*0.4) return -1;
+  const i = Math.floor((x - bx) / slotW);
+  return (i>=0 && i<3) ? i : -1;
+}
+function computeSnap(){
+  const p = tray[drag.idx];
+  const x0 = drag.x - p.cols*cell/2, y0 = drag.y - drag.offY - p.rows*cell;
+  const c = Math.round((x0 - bx)/cell), r = Math.round((y0 - by)/cell);
+  drag.snap = canPlace(p, r, c) ? {r, c} : null;
+}
+cv.addEventListener('pointerdown', e => {
+  if (over || drag) return;
+  const rect = cv.getBoundingClientRect();
+  const x = e.clientX - rect.left, y = e.clientY - rect.top;
+  const i = slotAt(x, y);
+  if (i < 0 || !tray[i]) return;
+  // 指で隠れないよう、タッチのときはピースを指より上に出す
+  const offY = e.pointerType === 'mouse' ? -tray[i].rows*cell/2 : cell*1.1;
+  drag = {idx:i, x, y, offY, snap:null, id:e.pointerId};
+  cv.setPointerCapture(e.pointerId);
+  computeSnap();
+  beep(330, 0.04, 'triangle', 0.08);
+});
+cv.addEventListener('pointermove', e => {
+  if (!drag || e.pointerId !== drag.id) return;
+  const rect = cv.getBoundingClientRect();
+  drag.x = e.clientX - rect.left; drag.y = e.clientY - rect.top;
+  const before = drag.snap && (drag.snap.r+','+drag.snap.c);
+  computeSnap();
+  const after = drag.snap && (drag.snap.r+','+drag.snap.c);
+  if (after && after !== before) beep(600, 0.02, 'sine', 0.04);
+});
+function endDrag(e){
+  if (!drag || e.pointerId !== drag.id) return;
+  const d = drag; drag = null;
+  if (d.snap) place(d.idx, d.snap.r, d.snap.c);
+}
+cv.addEventListener('pointerup', endDrag);
+cv.addEventListener('pointercancel', e => { if (drag && e.pointerId === drag.id) drag = null; });
+
+function place(idx, r, c){
+  const p = tray[idx];
+  for (const [dr,dc] of p.cells) grid[r+dr][c+dc] = p.color;
+  tray[idx] = null;
+  let gain = p.cells.length;
+  const rows = [], cols = [];
+  for (let i=0;i<N;i++){
+    if (grid[i].every(Boolean)) rows.push(i);
+    if (grid.every(row => row[i])) cols.push(i);
+  }
+  const lines = rows.length + cols.length;
+  const now = performance.now();
+  const cx = bx + (c + p.cols/2)*cell, cy = by + (r + p.rows/2)*cell;
+  if (lines > 0){
+    combo++; calmMoves = 0;
+    const seen = new Set();
+    for (const rr of rows) for (let cc=0;cc<N;cc++) seen.add(rr*N+cc);
+    for (const cc of cols) for (let rr=0;rr<N;rr++) seen.add(rr*N+cc);
+    for (const k of seen){
+      const rr = Math.floor(k/N), cc = k%N;
+      clearing.push({r:rr, c:cc, color:grid[rr][cc], t0:now});
+      grid[rr][cc] = null;
+    }
+    const lineScore = 10*lines + 10*lines*(lines-1);
+    const add = lineScore * Math.max(1, combo);
+    gain += add;
+    popups.push({text:'+'+add, x:cx, y:cy, t0:now, color:'#ffd84d', size:28});
+    if (combo >= 2) popups.push({text:`コンボ ×${combo}`, x:bx+bs/2, y:by+bs*0.42, t0:now, color:'#8ce99a', size:34});
+    if (lines >= 2) popups.push({text:`${lines}列いっぺん！`, x:bx+bs/2, y:by+bs*0.3, t0:now, color:'#74c0fc', size:30});
+    if (grid.every(row => row.every(v => !v))){
+      gain += 300;
+      popups.push({text:'ぜんけし！ +300', x:bx+bs/2, y:by+bs*0.55, t0:now, color:'#ff8787', size:36});
+    }
+    for (let i=0;i<Math.min(lines+1,5);i++) beep(NOTES[Math.min(i+combo-1, NOTES.length-1)], 0.12, 'triangle', 0.14, i*0.06);
+    if (navigator.vibrate) try { navigator.vibrate(lines>1 ? [20,30,20] : 20); } catch {}
+  } else {
+    calmMoves++;
+    if (calmMoves >= 3) combo = 0;
+    beep(220, 0.06, 'sine', 0.12);
+  }
+  score += gain;
+  if (tray.every(x => !x)) tray = newTray();
+  updateHud();
+  if (!tray.some(x => x && fitsAnywhere(x))) {
+    over = true; save();
+    setTimeout(gameOver, 700);
+  } else save();
+}
+
+// ---- 表示 ----
+const $ = id => document.getElementById(id);
+function updateHud(){
+  $('score').textContent = score;
+  $('bestText').textContent = score > best && best > 0 ? 'ベスト更新中！' : (best > 0 ? `ベストまであと ${Math.max(0,best-score)}` : 'はじめての記録をつくろう');
+  $('bestFill').style.width = best > 0 ? Math.min(100, score/best*100)+'%' : '0%';
+  $('bestFill').style.background = score > best && best > 0 ? 'var(--good)' : 'var(--accent)';
+}
+function gameOver(){
+  const isBest = score > best;
+  if (isBest){ best = score; store.set(BEST_KEY, String(best)); }
+  $('finalScore').textContent = score;
+  $('finalSub').textContent = isBest ? 'これまでで一番！' : `自己ベストは ${best}`;
+  $('newBest').hidden = !isBest;
+  $('over').classList.add('show');
+  [392,330,262].forEach((f,i)=>beep(f, 0.18, 'sine', 0.12, i*0.14));
+}
+$('retryBtn').onclick = () => { $('over').classList.remove('show'); newGame(); };
+$('shareBtn').onclick = async () => {
+  const url = location.href.split('?')[0].split('#')[0];
+  const text = `スキマうめで ${score}点とったよ！ ${url}`;
+  try {
+    if (navigator.share) { await navigator.share({text}); return; }
+  } catch (e) { if (e && e.name === 'AbortError') return; }
+  try { await navigator.clipboard.writeText(text); toast('コピーしました。LINEなどに貼ってね'); }
+  catch { toast(text); }
+};
+$('muteBtn').onclick = () => {
+  muted = !muted; store.set(MUTE_KEY, muted ? '1' : '0');
+  $('muteBtn').textContent = muted ? '🔇' : '🔊';
+};
+$('muteBtn').textContent = muted ? '🔇' : '🔊';
+let toastTimer;
+function toast(msg){
+  const t = $('toast'); t.textContent = msg; t.classList.add('show');
+  clearTimeout(toastTimer); toastTimer = setTimeout(()=>t.classList.remove('show'), 2200);
+}
+
+// テスト用の入口（遊ぶ人には関係ない）
+window.__sukima = { get state(){ return {grid, tray, score, over, best}; }, place, newGame,
+  geom(){ return {bx, by, cell, slotY, slotH, slotW}; }, canPlace };
+
+layout();
+if (!load()) newGame(); else updateHud();
+if (!tray.some(x => x && fitsAnywhere(x))) { over = true; save(); setTimeout(gameOver, 300); }
+requestAnimationFrame(loop);
+})();
+</script>
+</body>
+</html>
