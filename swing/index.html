@@ -1,0 +1,824 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no">
+<title>ぶらんこジャンプ</title>
+<meta name="theme-color" content="#14313b">
+<link rel="icon" href="data:,">
+<style>
+:root{--bg:#14313b;--panel:#1f4552;--text:#f2fbff;--muted:#a9cdd8;--accent:#ffd43b;--danger:#ff6b6b}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%;background:var(--bg);color:var(--text);
+  font-family:system-ui,-apple-system,"Hiragino Sans","Noto Sans JP",sans-serif;
+  overscroll-behavior:none;-webkit-user-select:none;user-select:none;-webkit-touch-callout:none}
+body{display:flex;flex-direction:column;height:100vh;height:100dvh;overflow:hidden}
+header{display:flex;align-items:center;justify-content:space-between;padding:10px 16px 0;gap:8px}
+header a,header button{color:var(--muted);font-size:14px;text-decoration:none;background:none;border:0;padding:6px 4px;cursor:pointer}
+header h1{font-size:16px;font-weight:700;letter-spacing:.05em}
+#hud{display:flex;align-items:flex-end;justify-content:space-between;padding:2px 16px 4px}
+#dist{font-size:34px;font-weight:800;line-height:1.1;font-variant-numeric:tabular-nums}
+#dist small{font-size:16px;font-weight:700;margin-left:2px}
+#sub{font-size:12px;color:var(--muted)}
+#modeTag{font-size:13px;font-weight:700;color:#14313b;background:var(--accent);border-radius:999px;padding:3px 12px}
+#stage{flex:1;position:relative;min-height:0;padding-bottom:env(safe-area-inset-bottom)}
+#cv{position:absolute;inset:0;width:100%;height:100%;touch-action:none;display:block}
+#hint{position:absolute;left:0;right:0;bottom:14px;text-align:center;font-size:13px;color:#fff;text-shadow:0 1px 3px #000a;pointer-events:none;transition:opacity .4s}
+.ov{position:fixed;inset:0;background:rgba(8,20,26,.74);display:none;align-items:center;justify-content:center;padding:16px;z-index:5}
+.ov.show{display:flex}
+.card{background:var(--panel);border-radius:20px;padding:24px 20px;width:min(360px,100%);text-align:center;box-shadow:0 10px 40px rgba(0,0,0,.4)}
+.card h2{font-size:22px;margin-bottom:8px}
+.card .big{font-size:52px;font-weight:800;font-variant-numeric:tabular-nums}
+.card .sub{color:var(--muted);font-size:14px;margin:4px 0 16px;line-height:1.6}
+.badge{display:inline-block;background:var(--accent);color:#3b2f00;font-weight:800;border-radius:999px;padding:4px 12px;font-size:14px;margin-bottom:6px}
+.btns{display:flex;flex-direction:column;gap:10px}
+.btn{font:inherit;font-size:17px;font-weight:700;border:0;border-radius:14px;padding:14px;cursor:pointer;color:var(--text)}
+.btn.primary{background:var(--accent);color:#3b2f00}
+.btn.ghost{background:#2f6275}
+.btn small{display:block;font-size:12px;font-weight:500;opacity:.85;margin-top:2px}
+.stepper{display:flex;align-items:center;justify-content:center;gap:14px;margin:2px 0 4px}
+.stepper button{width:44px;height:44px;border-radius:50%;border:0;background:#2f6275;color:var(--text);font-size:20px;cursor:pointer}
+.stepper button:disabled{opacity:.3}
+.stepper span{font-size:17px;font-weight:800;min-width:170px;line-height:1.3}
+.how{font-size:13px;color:var(--muted);line-height:1.7;margin-bottom:14px;text-align:left}
+#toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%);background:#000c;color:#fff;padding:10px 16px;border-radius:999px;font-size:14px;opacity:0;transition:opacity .25s;pointer-events:none;z-index:9}
+#toast.show{opacity:1}
+</style>
+</head>
+<body>
+<header>
+  <a href="../">← ゲーム一覧</a>
+  <h1>ぶらんこジャンプ</h1>
+  <button id="muteBtn" aria-label="音のオンオフ">🔊</button>
+</header>
+<div id="hud">
+  <div><div id="dist">0<small>m</small></div><div id="sub"></div></div>
+  <div id="modeTag"></div>
+</div>
+<div id="stage"><canvas id="cv"></canvas><div id="hint"></div></div>
+
+<div id="menu" class="ov show" role="dialog" aria-modal="true">
+  <div class="card">
+    <h2>ぶらんこジャンプ</h2>
+    <div class="how">
+      画面をおすと、ななめ前の天井にロープがのびる。おしている間ぶら下がり、はなすと飛ぶ。<br>
+      のびる途中でかべや岩やトゲに当たると、ロープは使えない。<br>
+      天井の<b style="color:#ff8f8f">赤いしるし</b>は、ロープがとどかない・つかない場所。<br>
+      島は<b style="color:#ffd43b">ジャンプ台</b>。ふむと上にはねる。下の水に落ちたらおしまい。
+    </div>
+    <div class="btns">
+      <button class="btn primary" id="endlessBtn">エンドレス<small id="endlessBest"></small></button>
+      <div>
+        <div class="stepper">
+          <button id="stPrev" aria-label="ひとつ前のステージ">◀</button>
+          <span id="stLabel">ステージ 1</span>
+          <button id="stNext" aria-label="次のステージ">▶</button>
+        </div>
+        <button class="btn ghost" id="stageBtn" style="width:100%">ステージモード<small id="stageInfo"></small></button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div id="over" class="ov" role="dialog" aria-modal="true">
+  <div class="card">
+    <div id="newBest" class="badge" hidden>自己ベスト更新！</div>
+    <h2 id="overTitle"></h2>
+    <div class="big" id="finalScore">0</div>
+    <div class="sub" id="finalSub"></div>
+    <div class="btns">
+      <button class="btn primary" id="nextBtn">もう一回</button>
+      <button class="btn ghost" id="retryBtn">もう一回</button>
+      <button class="btn ghost" id="shareBtn">スコアを送る</button>
+      <button class="btn ghost" id="menuBtn">モード選択</button>
+    </div>
+  </div>
+</div>
+<div id="toast"></div>
+
+<script>
+(() => {
+'use strict';
+// ---- 定数（長さの単位は「世界の px」。40px = 1m） ----
+const H = 600, CEIL = 50, WATER = 545, R = 11;
+const G = 1500, SUBSTEPS = 4, DT = 1/60;
+const DX = 1.0;                 // ロープののびる向き: 高さ1につき前へ1.0（約45度）
+const LMAX = 440;               // ロープの長さの上限（これより低い位置からはとどかない）
+const SHOT_SPEED = 3200;        // ロープがのびる速さ px/秒
+const RELEASE_BOOST = 1.12;     // はなした瞬間に、飛ぶ勢いが少し強くなる
+const JUMP_VY = 560, JUMP_VX = 110;   // 立った所からロープを出したときのジャンプ
+const PAD_VY = 840;             // 島（ジャンプ台）をふんだときにはねる速さ
+const PX_M = 40;
+const BUFFER = 0.12;            // おすのが少し早くても受けつける秒数
+const START_TOP = 400, START_X = 130;
+const BEST_KEY = 'swing.best', STAGE_KEY = 'swing.stage', MUTE_KEY = 'swing.mute';
+
+const store = {
+  get(k){ try { return localStorage.getItem(k); } catch { return null; } },
+  set(k,v){ try { localStorage.setItem(k,v); } catch {} },
+};
+const $ = id => document.getElementById(id);
+const clamp = (v,a,b) => Math.max(a, Math.min(b, v));
+const lerp = (a,b,t) => a + (b-a)*t;
+
+// ---- 乱数（ステージは同じ番号なら毎回同じ形にしたい） ----
+function mulberry32(seed){
+  let a = seed >>> 0;
+  return () => { a = (a + 0x6D2B79F5) >>> 0; let t = a;
+    t = Math.imul(t ^ (t >>> 15), t | 1); t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296; };
+}
+
+// ---- 状態 ----
+let world = null, mode = 'endless', stageNo = 1, phase = 'menu'; // menu / play / dying / over
+let P = null, rope = null, cam = 0, visW = 360, t = 0, deadTimer = 0;
+let holding = false, pressTimer = 0, maxX = 0, extra = null;
+let particles = [], fx = [];
+let muted = store.get(MUTE_KEY) === '1';
+let stageCleared = parseInt(store.get(STAGE_KEY) || '0', 10) || 0;
+let endlessBest = parseInt(store.get(BEST_KEY) || '0', 10) || 0;
+let selStage = 1;
+
+// ---- 動くものの位置 ----
+function mvOff(o){ return o.mv ? o.mv.amp*Math.sin(o.mv.spd*t + o.mv.ph) : 0; }
+function spikeRect(h){ return [h.x, CEIL - 2, h.w, h.len + 2 + mvOff(h)]; }
+function blockRect(b){ return [b.x, b.y + mvOff(b), b.w, b.h]; }
+function platRect(p){ return [p.x, p.top, p.w, p.kind === 'pad' ? 22 : 500]; }   // ジャンプ台の島は、柱のない浮島
+
+// ---- コースの部品（ステージとエンドレスの両方で使う） ----
+// plats: 島 {x,w,top,kind:'start'|'pad'|'goal'}   gaps: ロープがつかない天井 {x0,x1}
+// spikes: 天井のトゲ {x,w,len,mv?}（さわるとおしまい）   blocks: 岩・かべ {x,y,w,h,wall?,mv?}（かたい。ロープもさえぎる）
+function newWorld(rng){
+  return { rng, plats:[{x:-40, w:210, top:START_TOP, kind:'start'}], gaps:[], spikes:[], blocks:[],
+           cursor:700, goalX:null, lastPad:170, last:'plain' };
+}
+const rint = (r, a, b) => Math.round(lerp(a, b, r()));
+const SEC = {
+  // 何もない天井
+  plain(w, d, r){ w.cursor += lerp(260, 420, r()); },
+  // ロープのつかない穴が、すきまをはさんで続く
+  gaps(w, d, r){
+    const n = 1 + (r() < d ? 1 : 0) + (d > 0.6 && r() < 0.5 ? 1 : 0);
+    let x = w.cursor + 80;
+    for (let i = 0; i < n; i++){
+      const len = lerp(120, 250, d) * lerp(0.8, 1, r());
+      w.gaps.push({x0:x, x1:x+len}); x += len + lerp(200, 280, r());
+    }
+    w.cursor = x;
+  },
+  // 天井からのトゲ（長さはばらばら）
+  spikes(w, d, r){
+    const n = 2 + Math.floor(d*3*r());
+    let x = w.cursor + 120;
+    for (let i = 0; i < n; i++){
+      const len = lerp(90, 170, r()) + d*lerp(0, 100, r());
+      w.spikes.push({x, w:30, len}); x += 30 + lerp(120, 200, r());
+    }
+    w.cursor = x + 200;
+  },
+  // トゲがぎっしり並ぶ「くし」。下をくぐる
+  comb(w, d, r){
+    const n = 4 + Math.floor(d*3);
+    let x = w.cursor + 120;
+    for (let i = 0; i < n; i++){
+      w.spikes.push({x, w:26, len:lerp(150, 215, r())}); x += 26 + lerp(60, 90, r());
+    }
+    w.cursor = x + 200;
+  },
+  // 空中にういた岩
+  blocks(w, d, r){
+    const n = 2 + Math.floor(d*2 + r());
+    let x = w.cursor + 120;
+    for (let i = 0; i < n; i++){
+      const bw = lerp(40, 70, r()), bh = lerp(60, 120, r());
+      w.blocks.push({x, y:rint(r, 150, 340), w:bw, h:bh}); x += bw + lerp(160, 260, r());
+    }
+    w.cursor = x + 120;
+  },
+  // 水から立つ石のかべ。上をこえる
+  wall(w, d, r){
+    const n = 1 + (d > 0.75 ? 1 : 0);
+    let x = w.cursor + 320;   // かべの前に助走できる長さ
+    for (let i = 0; i < n; i++){
+      const top = rint(r, lerp(385, 370, d), lerp(375, 360, d));
+      w.blocks.push({x, y:top, w:50, h:WATER + 60 - top, wall:true}); x += 50 + lerp(340, 430, r());
+    }
+    w.cursor = x;
+  },
+  // 天井がさがってくる所。下をくぐる
+  lowCeiling(w, d, r){
+    const len = lerp(260, 420, d) * lerp(0.9, 1.1, r());
+    const x = w.cursor + 100;
+    w.blocks.push({x, y:CEIL, w:len, h:lerp(100, 150, d)});
+    w.cursor = x + len + 220;
+  },
+  // のびちぢみするトゲ
+  pistons(w, d, r){
+    const n = 2 + Math.floor(d*2);
+    let x = w.cursor + 140;
+    for (let i = 0; i < n; i++){
+      w.spikes.push({x, w:32, len:lerp(110, 150, r()), mv:{amp:lerp(45, 85, d), spd:lerp(2, 3.2, r()), ph:r()*6.28}});
+      x += 32 + lerp(170, 240, r());
+    }
+    w.cursor = x + 160;
+  },
+  // 上下に動く岩
+  sweepers(w, d, r){
+    const n = 2 + (d > 0.5 ? 1 : 0);
+    let x = w.cursor + 140;
+    for (let i = 0; i < n; i++){
+      w.blocks.push({x, y:rint(r, 190, 250), w:50, h:90, mv:{amp:lerp(50, 110, d), spd:lerp(1.6, 2.6, r()), ph:r()*6.28}});
+      x += 50 + lerp(200, 280, r());
+    }
+    w.cursor = x + 100;
+  },
+  // 島（ジャンプ台）がひとつ
+  pad(w, d, r){
+    const x = w.cursor + 60, wd = lerp(190, 150, d) * lerp(0.9, 1.15, r());
+    w.plats.push({x, w:wd, top:rint(r, 380, 420), kind:'pad'});
+    w.lastPad = x + wd; w.cursor = x + wd + 260;
+  },
+  // 長い穴の真ん中に島。ジャンプ台ではねて、むこうの天井へ
+  gapPad(w, d, r){
+    const glen = lerp(300, 380, d) * lerp(0.95, 1.05, r()), x0 = w.cursor + 100, wd = 170;
+    w.gaps.push({x0, x1:x0 + glen});
+    w.plats.push({x:x0 + glen/2 - wd/2, w:wd, top:rint(r, 390, 420), kind:'pad'});
+    w.lastPad = x0 + glen; w.cursor = x0 + glen + 220;
+  },
+};
+const SEC_NAMES = Object.keys(SEC);
+
+// 続けるとむずかしすぎる組み合わせ（低い所をくぐった直後に、高いかべをこえるなど）
+const BAD_PAIR = new Set(['lowCeiling>wall', 'comb>wall', 'wall>lowCeiling', 'wall>comb', 'comb>lowCeiling', 'lowCeiling>comb',
+                          'lowCeiling>pad', 'lowCeiling>gapPad', 'comb>pad', 'comb>gapPad']);
+// かべは、低い所をくぐったあとには置かない（高い所へ上がる余裕がないため）
+const WALL_OK = new Set(['plain', 'pad', 'gapPad', 'blocks']);
+function pickSection(r, d, last){
+  const W = [['plain',0.8], ['gaps',1+d], ['spikes',1+d], ['blocks',0.8+0.6*d], ['wall',0.5+d], ['lowCeiling',0.4+0.6*d],
+             ['pistons', d > 0.15 ? 0.5+d : 0], ['sweepers', d > 0.25 ? 0.4+d : 0], ['comb', d > 0.5 ? 0.3+d : 0],
+             ['pad',0.45], ['gapPad',0.35+0.3*d]];
+  let name = 'plain';
+  for (let k = 0; k < 4; k++){
+    let total = 0; for (const [,v] of W) total += v;
+    let pick = r()*total;
+    for (const [n,v] of W){ if ((pick -= v) < 0){ name = n; break; } }
+    if (name !== last && !BAD_PAIR.has(last + '>' + name) && !(name === 'wall' && !WALL_OK.has(last))) break;
+  }
+  return name;
+}
+
+// ステージの設計図。数字が大きいほどむずかしい。13からは自動でまぜる
+const STAGES = [
+  {name:'はじめの一歩', d:0.05, secs:['plain','plain','pad','plain']},
+  {name:'ぬけあな',     d:0.10, secs:['plain','gaps','plain','gapPad']},
+  {name:'トゲの森',     d:0.15, secs:['plain','spikes','plain','spikes','plain','pad']},
+  {name:'ふわふわ岩',   d:0.20, secs:['plain','blocks','plain','blocks','pad']},
+  {name:'石のかべ',     d:0.25, secs:['plain','wall','plain','wall','gapPad']},
+  {name:'ひくい天井',   d:0.30, secs:['plain','lowCeiling','plain','gaps','lowCeiling']},
+  {name:'ピストン',     d:0.35, secs:['plain','pistons','plain','pistons','spikes']},
+  {name:'うごく岩',     d:0.40, secs:['plain','sweepers','blocks','plain','sweepers']},
+  {name:'ジャンプ台の道', d:0.50, secs:['gapPad','wall','gapPad','pistons','gapPad']},
+  {name:'トゲのくし',   d:0.60, secs:['spikes','comb','wall','comb','lowCeiling']},
+  {name:'ミックスA',    d:0.70, random:8},
+  {name:'ミックスB',    d:0.85, random:10},
+];
+function stageDef(n){
+  if (n <= STAGES.length) return STAGES[n-1];
+  return {name:`ミックス ${n}`, d:Math.min(1, 0.85 + 0.01*(n - STAGES.length)), random:Math.min(20, 10 + Math.floor((n - STAGES.length)/2))};
+}
+function buildFromSecs(secs, d, rng){
+  const w = newWorld(rng);
+  for (const s of secs){ SEC[s](w, d, rng); w.last = s; }
+  w.cursor += 120;
+  w.plats.push({x:w.cursor, w:360, top:START_TOP, kind:'goal'});
+  w.goalX = w.cursor; w.cursor += 360;
+  return w;
+}
+function buildStage(n){
+  const def = stageDef(n), rng = mulberry32(n*7919 + 13);
+  let secs = def.secs;
+  if (!secs){
+    secs = []; let last = 'plain', lastPadAt = 0, len = 0;
+    for (let i = 0; i < def.random; i++){
+      let s = pickSection(rng, def.d, last);
+      if (len - lastPadAt > 14 && s !== 'pad' && s !== 'gapPad'){   // 島が遠すぎないように
+        if (last === 'lowCeiling' || last === 'comb'){ secs.push('plain'); len += 3; }   // 低い所のあとは、助走をはさむ
+        s = 'pad';
+      }
+      if (s === 'pad' || s === 'gapPad') lastPadAt = len;
+      secs.push(s); last = s; len += 3;
+    }
+  }
+  return buildFromSecs(secs, def.d, rng);
+}
+function addPart(w, d){
+  let name = pickSection(w.rng, d, w.last);
+  if (w.cursor - w.lastPad > lerp(1800, 2600, d)){
+    if (w.last === 'lowCeiling' || w.last === 'comb') SEC.plain(w, d, w.rng);   // 低い所のあとは、助走をはさむ
+    name = 'pad';
+  }
+  SEC[name](w, d, w.rng); w.last = name;
+}
+
+// ---- 当たり判定の道具 ----
+function segRect(x0, y0, x1, y1, rx, ry, rw, rh){
+  let t0 = 0, t1 = 1; const dx = x1 - x0, dy = y1 - y0;
+  const p = [-dx, dx, -dy, dy], q = [x0 - rx, rx + rw - x0, y0 - ry, ry + rh - y0];
+  for (let i = 0; i < 4; i++){
+    if (p[i] === 0){ if (q[i] < 0) return false; }
+    else {
+      const r = q[i]/p[i];
+      if (p[i] < 0){ if (r > t1) return false; if (r > t0) t0 = r; }
+      else { if (r < t0) return false; if (r < t1) t1 = r; }
+    }
+  }
+  return true;
+}
+function segBlocked(x0, y0, x1, y1){
+  const lo = Math.min(x0, x1) - 4, hi = Math.max(x0, x1) + 4;
+  const test = (rc) => rc[0] <= hi && rc[0] + rc[2] >= lo && segRect(x0, y0, x1, y1, rc[0], rc[1], rc[2], rc[3]);
+  for (const h of world.spikes) if (test(spikeRect(h))) return true;
+  for (const b of world.blocks) if (test(blockRect(b))) return true;
+  for (const pl of world.plats) if (test(platRect(pl))) return true;
+  return false;
+}
+function inGap(ax){
+  for (const g of world.gaps) if (ax > g.x0 - 6 && ax < g.x1 + 6) return true;
+  return false;
+}
+// いまおしたら、ロープはどこへのびて、使えるか
+function aimInfo(){
+  const dy = P.y - CEIL;
+  if (dy > LMAX - 10) return {ax:P.x, st:'far'};
+  const dx = Math.min(DX*Math.max(dy, 90), Math.sqrt(LMAX*LMAX - dy*dy));
+  const ax = P.x + dx;
+  if (inGap(ax)) return {ax, st:'gap'};
+  if (segBlocked(P.x, P.y, ax, CEIL)) return {ax, st:'blocked'};
+  return {ax, st:'ok'};
+}
+function circleRect(rc){
+  const [rx, ry, rw, rh] = rc;
+  const cx = clamp(P.x, rx, rx + rw), cy = clamp(P.y, ry, ry + rh);
+  const dx = P.x - cx, dy = P.y - cy, d2 = dx*dx + dy*dy;
+  if (d2 >= R*R) return null;
+  let nx, ny;
+  if (d2 > 1e-6){ const d = Math.sqrt(d2); nx = dx/d; ny = dy/d; P.x = cx + nx*R; P.y = cy + ny*R; }
+  else {
+    const l = P.x - rx, r = rx + rw - P.x, tp = P.y - ry, bt = ry + rh - P.y, m = Math.min(l, r, tp, bt);
+    if (m === tp){ nx = 0; ny = -1; P.y = ry - R; }
+    else if (m === bt){ nx = 0; ny = 1; P.y = ry + rh + R; }
+    else if (m === l){ nx = -1; ny = 0; P.x = rx - R; }
+    else { nx = 1; ny = 0; P.x = rx + rw + R; }
+  }
+  return {nx, ny};
+}
+
+function start(m, n){
+  mode = m; stageNo = n || 1;
+  world = (m === 'stage') ? buildStage(stageNo) : newWorld(Math.random);
+  const sp = world.plats[0];
+  P = {x:START_X, y:sp.top - R, vx:0, vy:0, grounded:true, plat:sp};
+  rope = null; cam = P.x - 100; t = 0; maxX = P.x;
+  particles = []; fx = []; holding = false; pressTimer = 0; extra = null;
+  phase = 'play';
+  $('menu').classList.remove('show'); $('over').classList.remove('show');
+  $('modeTag').textContent = (m === 'stage') ? `ステージ ${stageNo}` : 'エンドレス';
+  hint(m === 'stage' ? `「${stageDef(stageNo).name}」おして飛んで、ゴールの島に着地しよう` : 'おしてロープをのばす。はなして飛ぶ');
+  setTimeout(() => hint(''), 3800);
+  updateHud();
+}
+function hint(s){ $('hint').textContent = s; }
+
+// ---- 入力 ----
+function press(){
+  if (phase !== 'play') return;
+  holding = true; pressTimer = BUFFER;
+  tryShoot();
+}
+function release(){
+  holding = false; pressTimer = 0;
+  if (phase === 'play' && rope){
+    if (!rope.shooting){ P.vx *= RELEASE_BOOST; P.vy *= RELEASE_BOOST; }
+    rope = null; beep(520, .05, 'triangle', .1);
+  }
+}
+function tryShoot(){
+  if (rope || phase !== 'play' || pressTimer <= 0) return;
+  const a = aimInfo();
+  if (a.st === 'far') return;          // 低すぎてとどかない。ほんの少しの間はおしっぱなしを待つ
+  rope = {shooting:true, ax:a.ax, sx:P.x, sy:P.y, len0:Math.hypot(a.ax - P.x, CEIL - P.y), u:0, tx:P.x, ty:P.y, L:0};
+  pressTimer = 0;
+  beep(700, .04, 'square', .05);
+  // 立っているときは、少しジャンプして飛び出す
+  if (P.grounded){ P.vy = Math.min(P.vy, -JUMP_VY); P.vx += JUMP_VX; P.y -= 2; P.grounded = false; }
+}
+function ropeFail(x, y){
+  rope = null; pressTimer = 0;
+  fx.push({x, y, life:0.35});
+  beep(130, .12, 'sawtooth', .08);
+}
+// ロープがのびている最中: かべにぶつかったら失敗、天井にとどいたらぶら下がる
+function stepShot(dt){
+  rope.u += SHOT_SPEED*dt/rope.len0;
+  const u = Math.min(1, rope.u);
+  const tx = rope.sx + (rope.ax - rope.sx)*u, ty = rope.sy + (CEIL - rope.sy)*u;
+  rope.tx = tx; rope.ty = ty;
+  if (segBlocked(P.x, P.y, tx, ty)){ ropeFail(tx, ty); return; }
+  if (rope.u >= 1){
+    if (inGap(rope.ax)){ ropeFail(rope.ax, CEIL); return; }
+    const L = Math.hypot(P.x - rope.ax, P.y - CEIL);
+    if (CEIL + L > WATER - 8){ ropeFail(rope.ax, CEIL); return; }   // 長すぎて水にとどく
+    rope.shooting = false; rope.L = L;
+    beep(300 + Math.min(300, L/2), .07, 'square', .08);
+  }
+}
+
+// ---- 物理 ----
+function die(reason){
+  if (phase !== 'play') return;
+  phase = 'dying'; deadTimer = 0.8; rope = null; holding = false;
+  extra = reason;
+  if (reason === 'water'){
+    for (let i = 0; i < 26; i++)
+      particles.push({x:P.x, y:WATER, vx:(Math.random()-.5)*260 + P.vx*.2, vy:-Math.random()*380 - 80, life:0.9});
+    beep(150, .35, 'sawtooth', .12); beep(90, .45, 'sine', .15, .1);
+  } else {
+    for (let i = 0; i < 14; i++)
+      particles.push({x:P.x, y:P.y, vx:(Math.random()-.5)*300, vy:(Math.random()-.5)*300, life:0.6});
+    beep(200, .25, 'square', .1);
+  }
+}
+function hitSolid(hit, kind, obj){
+  const p = P, vn = p.vx*hit.nx + p.vy*hit.ny;
+  if (kind === 'pad' && hit.ny < -0.6 && vn < 0){
+    p.vy = -PAD_VY; p.vx *= 0.97;
+    fx.push({x:p.x, y:obj.top, life:0.3, pad:true});
+    beep(380, .1, 'triangle', .12); beep(560, .1, 'triangle', .1, .06);
+    return;
+  }
+  if (vn < 0){ p.vx -= hit.nx*vn; p.vy -= hit.ny*vn; }
+  if (hit.ny < -0.6){ p.grounded = true; p.plat = obj; }
+}
+function sub(dt){
+  const p = P;
+  p.vy += G*dt;
+  p.x += p.vx*dt; p.y += p.vy*dt;
+  if (rope && rope.shooting) stepShot(dt);
+  if (rope && !rope.shooting){
+    const dx = p.x - rope.ax, dy = p.y - CEIL, d = Math.hypot(dx, dy);
+    if (d > rope.L){
+      const nx = dx/d, ny = dy/d;
+      p.x = rope.ax + nx*rope.L; p.y = CEIL + ny*rope.L;
+      const vn = p.vx*nx + p.vy*ny;
+      if (vn > 0){ p.vx -= nx*vn; p.vy -= ny*vn; }
+    }
+  }
+  if (p.y < CEIL + R){ p.y = CEIL + R; if (p.vy < 0) p.vy = 0; }
+  const wasGrounded = p.grounded;
+  p.grounded = false; p.plat = null;
+  for (const pl of world.plats){
+    if (pl.x + pl.w < p.x - 60 || pl.x > p.x + 60) continue;
+    const hit = circleRect(platRect(pl));
+    if (hit) hitSolid(hit, pl.kind, pl);
+  }
+  for (const b of world.blocks){
+    if (b.x + b.w < p.x - 60 || b.x > p.x + 60) continue;
+    const hit = circleRect(blockRect(b));
+    if (hit) hitSolid(hit, 'block', b);
+  }
+  if (p.grounded){
+    p.vx *= Math.exp(-6*dt);
+    if (!wasGrounded) beep(180, .06, 'sine', .1);
+  }
+  for (const h of world.spikes){
+    if (h.x + h.w < p.x - 40 || h.x > p.x + 40) continue;
+    const [rx, ry, rw, rh] = spikeRect(h);
+    const cx = clamp(p.x, rx, rx + rw), cy = clamp(p.y, ry, ry + rh);
+    if ((p.x-cx)*(p.x-cx) + (p.y-cy)*(p.y-cy) < (R-2)*(R-2)){ die('spike'); return; }
+  }
+  if (p.y + R*0.4 > WATER){ die('water'); return; }
+  if (mode === 'stage' && p.grounded && !rope && p.plat && p.plat.kind === 'goal') clear();
+}
+function clear(){
+  phase = 'over';
+  if (stageNo > stageCleared){ stageCleared = stageNo; store.set(STAGE_KEY, String(stageCleared)); }
+  beep(660, .12, 'triangle', .12); beep(880, .12, 'triangle', .12, .12); beep(1100, .2, 'triangle', .12, .24);
+  showOver(true);
+}
+function update(dt){
+  t += dt;
+  if (phase === 'play' || phase === 'dying'){
+    if (phase === 'play'){
+      if (pressTimer > 0){ tryShoot(); pressTimer -= dt; }
+      const h = dt / SUBSTEPS;
+      for (let i = 0; i < SUBSTEPS && phase === 'play'; i++) sub(h);
+      maxX = Math.max(maxX, P.x);
+      if (mode === 'endless'){
+        const d = Math.min(1, ((maxX - START_X)/PX_M)/1200);
+        while (world.cursor < cam + visW + 1200) addPart(world, d);
+        if (world.plats.length + world.blocks.length + world.spikes.length > 60){
+          const lim = cam - 600;
+          world.plats = world.plats.filter(p => p.x + p.w > lim);
+          world.gaps = world.gaps.filter(g => g.x1 > lim);
+          world.spikes = world.spikes.filter(h => h.x + h.w > lim);
+          world.blocks = world.blocks.filter(b => b.x + b.w > lim);
+        }
+      }
+      updateHud();
+    } else {
+      deadTimer -= dt;
+      if (deadTimer <= 0){ phase = 'over'; showOver(false); }
+    }
+  }
+  for (const q of particles){ q.vy += 900*dt; q.x += q.vx*dt; q.y += q.vy*dt; q.life -= dt; }
+  particles = particles.filter(q => q.life > 0);
+  for (const f of fx) f.life -= dt;
+  fx = fx.filter(f => f.life > 0);
+  if (P){
+    const target = P.x - visW*0.3;
+    cam += (target - cam) * Math.min(1, dt*6);
+  }
+}
+
+// ---- HUD・結果 ----
+function dist(){ return Math.max(0, Math.floor((maxX - START_X)/PX_M)); }
+function updateHud(){
+  const d = dist();
+  $('dist').innerHTML = `${d}<small>m</small>`;
+  if (mode === 'stage'){
+    const rest = Math.max(0, Math.ceil((world.goalX - P.x)/PX_M));
+    $('sub').textContent = `ゴールまで あと ${rest}m`;
+  } else {
+    $('sub').textContent = `ベスト ${Math.max(endlessBest, d)}m`;
+  }
+}
+function showOver(cleared){
+  const d = dist();
+  const isBest = mode === 'endless' && d > endlessBest;
+  if (isBest){ endlessBest = d; store.set(BEST_KEY, String(d)); }
+  $('newBest').hidden = !isBest;
+  $('nextBtn').style.display = cleared ? '' : 'none';
+  if (mode === 'stage'){
+    const nm = stageDef(stageNo).name;
+    $('overTitle').textContent = cleared ? `ステージ ${stageNo} クリア！` : `ステージ ${stageNo} 失敗`;
+    const total = Math.max(1, Math.round((world.goalX - START_X)/PX_M));
+    $('finalScore').textContent = cleared ? '🏁' : `${Math.min(99, Math.round(d/total*100))}%`;
+    $('finalSub').textContent = cleared ? `「${nm}」クリア。次はステージ ${stageNo+1}「${stageDef(stageNo+1).name}」。`
+                                        : `「${nm}」のゴールまでの道のり。${d}m まで行けた。`;
+    $('nextBtn').textContent = `ステージ ${stageNo+1} へ`;
+    $('retryBtn').textContent = cleared ? 'このステージをもう一回' : 'もう一回';
+    $('retryBtn').className = cleared ? 'btn ghost' : 'btn primary';
+  } else {
+    $('overTitle').textContent = extra === 'spike' ? 'トゲにぶつかった！' : '水に落ちた！';
+    $('finalScore').textContent = `${d}m`;
+    $('finalSub').textContent = `ベスト ${endlessBest}m`;
+    $('retryBtn').textContent = 'もう一回'; $('retryBtn').className = 'btn primary';
+  }
+  $('over').classList.add('show');
+  refreshMenu();
+}
+function refreshMenu(){
+  $('endlessBest').textContent = endlessBest ? `ベスト ${endlessBest}m` : 'どこまで行ける？';
+  const unlocked = stageCleared + 1;
+  selStage = clamp(selStage, 1, unlocked);
+  $('stLabel').innerHTML = `ステージ ${selStage}<br><span style="font-size:13px;font-weight:600;color:#a9cdd8">${stageDef(selStage).name}</span>`;
+  $('stPrev').disabled = selStage <= 1;
+  $('stNext').disabled = selStage >= unlocked;
+  $('stageInfo').textContent = stageCleared ? `${stageCleared}まで クリア済み` : 'ゴールの島に着地しよう';
+}
+
+// ---- 音 ----
+let actx = null;
+function beep(freq, dur=0.08, type='sine', vol=0.15, delay=0){
+  if (muted) return;
+  try {
+    actx = actx || new (window.AudioContext||window.webkitAudioContext)();
+    const o = actx.createOscillator(), g = actx.createGain();
+    const t0 = actx.currentTime + delay;
+    o.type = type; o.frequency.value = freq;
+    g.gain.setValueAtTime(vol, t0); g.gain.exponentialRampToValueAtTime(0.001, t0 + dur);
+    o.connect(g); g.connect(actx.destination); o.start(t0); o.stop(t0 + dur + 0.02);
+  } catch {}
+}
+
+// ---- 描画 ----
+const cv = $('cv'), ctx = cv.getContext('2d');
+const VIEW_MIN_W = 560;   // 横にこれだけ（世界のpx）は見えるようにする。前がよく見えないと避けられない
+let cw = 360, ch = 600, dpr = 1, S = 1, oy = 0;
+function layout(){
+  dpr = Math.min(2, window.devicePixelRatio || 1);
+  const r = cv.getBoundingClientRect();
+  cw = Math.max(1, r.width); ch = Math.max(1, r.height);
+  cv.width = Math.round(cw*dpr); cv.height = Math.round(ch*dpr);
+  S = Math.min(ch / H, cw / VIEW_MIN_W); visW = cw / S;
+  oy = (ch - H*S) / 2;      // 縦があまる分は、上を岩の天井・下を水でうめる
+}
+function sx(wx){ return (wx - cam)*S; }
+function sy(wy){ return oy + wy*S; }
+function rockRect(rc, fill, edge){
+  const [rx, ry, rw, rh] = rc;
+  ctx.fillStyle = fill; ctx.fillRect(sx(rx), sy(ry), rw*S, rh*S);
+  ctx.strokeStyle = edge; ctx.lineWidth = Math.max(1.5, 2*S); ctx.strokeRect(sx(rx), sy(ry), rw*S, rh*S);
+}
+
+function draw(){
+  ctx.setTransform(dpr,0,0,dpr,0,0);
+  const sky = ctx.createLinearGradient(0,0,0,ch);
+  sky.addColorStop(0,'#2d7f8f'); sky.addColorStop(.7,'#8fd0c4'); sky.addColorStop(1,'#cdeede');
+  ctx.fillStyle = sky; ctx.fillRect(0,0,cw,ch);
+  for (const [k, col, hgt] of [[0.25,'#4f9b8a',150],[0.45,'#2f7d6d',110]]){
+    ctx.fillStyle = col; ctx.beginPath(); ctx.moveTo(0, sy(WATER));
+    for (let px = 0; px <= cw + 20; px += 16){
+      const wx = px/S + cam*k;
+      const hh = hgt*(0.6 + 0.4*Math.sin(wx*0.011) * Math.sin(wx*0.0037 + 1));
+      ctx.lineTo(px, sy(WATER - hh));
+    }
+    ctx.lineTo(cw, sy(WATER)); ctx.closePath(); ctx.fill();
+  }
+  const x0 = cam - 20, x1 = cam + visW + 20;
+  // 天井
+  ctx.fillStyle = '#5b4636'; ctx.fillRect(0, 0, cw, sy(CEIL));
+  ctx.fillStyle = '#6e5844';
+  for (let wx = Math.floor(x0/70)*70; wx < x1; wx += 70) ctx.fillRect(sx(wx), sy(CEIL-14), 38*S, 14*S);
+  ctx.fillStyle = '#3f7d3a'; ctx.fillRect(0, sy(CEIL-4), cw, 6*S);
+  for (const g of world.gaps){
+    if (g.x1 < x0 || g.x0 > x1) continue;
+    ctx.fillStyle = '#2a1f19'; ctx.fillRect(sx(g.x0), 0, (g.x1-g.x0)*S, sy(CEIL));
+    ctx.fillStyle = '#ff6b6b';
+    for (let wx = g.x0; wx < g.x1; wx += 16) ctx.fillRect(sx(wx), sy(CEIL-2), 8*S, 4*S);
+  }
+  // 岩・かべ
+  for (const b of world.blocks){
+    if (b.x + b.w < x0 || b.x > x1) continue;
+    rockRect(blockRect(b), b.wall ? '#6a7380' : '#8b7b6b', b.mv ? '#e8a33d' : '#4a4038');
+  }
+  // トゲ
+  for (const h of world.spikes){
+    if (h.x + h.w < x0 || h.x > x1) continue;
+    const len = h.len + mvOff(h);
+    ctx.fillStyle = h.mv ? '#b08968' : '#8a8f99'; ctx.beginPath();
+    ctx.moveTo(sx(h.x), sy(CEIL-2)); ctx.lineTo(sx(h.x+h.w), sy(CEIL-2));
+    ctx.lineTo(sx(h.x+h.w*0.65), sy(CEIL+len)); ctx.lineTo(sx(h.x+h.w*0.35), sy(CEIL+len)); ctx.closePath(); ctx.fill();
+    ctx.fillStyle = '#ff6b6b'; ctx.beginPath();
+    ctx.moveTo(sx(h.x+h.w*0.35), sy(CEIL+len-2)); ctx.lineTo(sx(h.x+h.w*0.65), sy(CEIL+len-2));
+    ctx.lineTo(sx(h.x+h.w*0.5), sy(CEIL+len+14)); ctx.closePath(); ctx.fill();
+  }
+  // 島
+  for (const pl of world.plats){
+    if (pl.x + pl.w < x0 || pl.x > x1) continue;
+    const body = pl.kind === 'goal' ? '#a8895d' : '#7b7f86';
+    if (pl.kind === 'pad'){
+      // ジャンプ台: 浮かぶ小さな島。上にオレンジのばね板、下はまるい岩
+      ctx.fillStyle = '#6b8f99'; ctx.beginPath();
+      ctx.moveTo(sx(pl.x), sy(pl.top+8)); ctx.lineTo(sx(pl.x+pl.w), sy(pl.top+8));
+      ctx.quadraticCurveTo(sx(pl.x+pl.w*0.8), sy(pl.top+34), sx(pl.x+pl.w*0.5), sy(pl.top+36));
+      ctx.quadraticCurveTo(sx(pl.x+pl.w*0.2), sy(pl.top+34), sx(pl.x), sy(pl.top+8)); ctx.fill();
+      ctx.fillStyle = '#ff9f43'; ctx.fillRect(sx(pl.x), sy(pl.top), pl.w*S, 10*S);
+      ctx.fillStyle = '#fff3';
+      for (let i = 0; i < pl.w - 10; i += 28){
+        ctx.beginPath(); ctx.moveTo(sx(pl.x+8+i), sy(pl.top+8)); ctx.lineTo(sx(pl.x+16+i), sy(pl.top+1)); ctx.lineTo(sx(pl.x+24+i), sy(pl.top+8)); ctx.fill();
+      }
+    } else {
+      ctx.fillStyle = body; ctx.fillRect(sx(pl.x), sy(pl.top), pl.w*S, ch - sy(pl.top));
+      ctx.fillStyle = pl.kind === 'goal' ? '#ffd43b' : '#4aa35a';
+      ctx.fillRect(sx(pl.x), sy(pl.top), pl.w*S, 8*S);
+    }
+    if (pl.kind === 'goal'){
+      const fx0 = pl.x + pl.w*0.5;
+      ctx.fillStyle = '#fff'; ctx.fillRect(sx(fx0), sy(pl.top-90), 3*S, 90*S);
+      for (let i = 0; i < 4; i++) for (let j = 0; j < 3; j++){
+        ctx.fillStyle = (i+j)%2 ? '#222' : '#fff';
+        ctx.fillRect(sx(fx0+3+i*14), sy(pl.top-90+j*14), 14*S, 14*S);
+      }
+    }
+  }
+  // 水
+  const wg = ctx.createLinearGradient(0, sy(WATER), 0, ch);
+  wg.addColorStop(0,'rgba(60,160,220,.88)'); wg.addColorStop(1,'rgba(20,80,150,.95)');
+  ctx.fillStyle = wg; ctx.beginPath(); ctx.moveTo(0, ch);
+  for (let px = 0; px <= cw + 12; px += 12){
+    const wx = px/S + cam;
+    ctx.lineTo(px, sy(WATER + Math.sin(wx*0.03 + t*2.2)*3));
+  }
+  ctx.lineTo(cw, ch); ctx.closePath(); ctx.fill();
+  // ねらい: 天井のしるしと、ロープののびる道すじ
+  if (phase === 'play' && !rope){
+    const a = aimInfo();
+    if (a.st !== 'far'){
+      const ok = a.st === 'ok', col = ok ? '#7dffa0' : '#ff6b6b';
+      ctx.strokeStyle = col; ctx.globalAlpha = 0.45; ctx.lineWidth = Math.max(1.5, 2*S); ctx.setLineDash([6*S, 6*S]);
+      ctx.beginPath(); ctx.moveTo(sx(P.x), sy(P.y)); ctx.lineTo(sx(a.ax), sy(CEIL)); ctx.stroke();
+      ctx.setLineDash([]); ctx.globalAlpha = 1;
+      ctx.fillStyle = col;
+      ctx.beginPath(); ctx.moveTo(sx(a.ax)-7*S, sy(CEIL+1)); ctx.lineTo(sx(a.ax)+7*S, sy(CEIL+1)); ctx.lineTo(sx(a.ax), sy(CEIL+14)); ctx.closePath(); ctx.fill();
+    } else {
+      ctx.fillStyle = '#ffffffcc'; ctx.font = `700 ${12*S}px system-ui,sans-serif`; ctx.textAlign = 'center';
+      ctx.fillText('低すぎてロープがとどかない', sx(P.x), sy(P.y) - 24*S);
+    }
+  }
+  // ロープ
+  if (rope){
+    ctx.strokeStyle = '#f4d58d'; ctx.lineWidth = Math.max(2, 3*S); ctx.lineCap = 'round';
+    const ex = rope.shooting ? rope.tx : rope.ax, ey = rope.shooting ? rope.ty : CEIL;
+    ctx.beginPath(); ctx.moveTo(sx(P.x), sy(P.y)); ctx.lineTo(sx(ex), sy(ey)); ctx.stroke();
+    ctx.fillStyle = '#f4d58d'; ctx.beginPath(); ctx.arc(sx(ex), sy(ey), 4*S, 0, 7); ctx.fill();
+  }
+  // 失敗・ジャンプ台のエフェクト
+  for (const f of fx){
+    ctx.globalAlpha = clamp(f.life*3, 0, 1);
+    if (f.pad){ ctx.strokeStyle = '#ffd43b'; ctx.lineWidth = 3*S; ctx.beginPath(); ctx.arc(sx(f.x), sy(f.y), (0.3 - f.life)*160*S, Math.PI, 0); ctx.stroke(); }
+    else { ctx.strokeStyle = '#ff6b6b'; ctx.lineWidth = 3*S; const k = (0.35 - f.life)*60*S + 4*S;
+      ctx.beginPath(); ctx.moveTo(sx(f.x)-k, sy(f.y)-k); ctx.lineTo(sx(f.x)+k, sy(f.y)+k); ctx.moveTo(sx(f.x)+k, sy(f.y)-k); ctx.lineTo(sx(f.x)-k, sy(f.y)+k); ctx.stroke(); }
+  }
+  ctx.globalAlpha = 1;
+  ctx.fillStyle = '#e8f7ff';
+  for (const q of particles){ ctx.globalAlpha = clamp(q.life*1.4, 0, 1); ctx.beginPath(); ctx.arc(sx(q.x), sy(q.y), 3*S, 0, 7); ctx.fill(); }
+  ctx.globalAlpha = 1;
+  if (P && !(phase === 'dying' && extra === 'water')) drawPlayer();
+}
+function drawPlayer(){
+  const x = sx(P.x), y = sy(P.y), r = R*S;
+  ctx.fillStyle = '#e2493b'; ctx.beginPath(); ctx.arc(x, y, r, 0, 7); ctx.fill();
+  ctx.fillStyle = '#ffd9b3'; ctx.beginPath(); ctx.arc(x + r*.1, y - r*.15, r*.72, 0, 7); ctx.fill();
+  ctx.fillStyle = '#222';
+  ctx.beginPath(); ctx.arc(x + r*.1 - r*.22, y - r*.2, r*.1, 0, 7); ctx.arc(x + r*.1 + r*.28, y - r*.2, r*.1, 0, 7); ctx.fill();
+  ctx.fillStyle = '#2a2a6a'; ctx.beginPath(); ctx.arc(x + r*.1, y - r*.45, r*.62, Math.PI, 0); ctx.fill();
+}
+
+// ---- メインループ ----
+let last = 0, acc = 0;
+function frame(ts){
+  const dt = last ? Math.min(0.05, (ts - last)/1000) : DT;
+  last = ts; acc += dt;
+  while (acc >= DT){ if (world) update(DT); acc -= DT; }
+  if (world) draw();
+  requestAnimationFrame(frame);
+}
+
+// ---- つなぎ ----
+$('stage').addEventListener('pointerdown', e => { e.preventDefault(); press(); });
+window.addEventListener('pointerup', release);
+window.addEventListener('pointercancel', release);
+window.addEventListener('blur', release);
+window.addEventListener('keydown', e => {
+  if ((e.code === 'Space' || e.code === 'ArrowUp') && !e.repeat){ e.preventDefault(); press(); }
+});
+window.addEventListener('keyup', e => { if (e.code === 'Space' || e.code === 'ArrowUp') release(); });
+window.addEventListener('resize', layout);
+
+$('endlessBtn').onclick = () => start('endless');
+$('stageBtn').onclick = () => start('stage', selStage);
+$('stPrev').onclick = () => { selStage--; refreshMenu(); };
+$('stNext').onclick = () => { selStage++; refreshMenu(); };
+$('retryBtn').onclick = () => start(mode, stageNo);
+$('nextBtn').onclick = () => { selStage = stageNo + 1; start('stage', stageNo + 1); };
+$('menuBtn').onclick = () => { phase = 'menu'; $('over').classList.remove('show'); $('menu').classList.add('show'); refreshMenu(); };
+$('muteBtn').onclick = () => { muted = !muted; store.set(MUTE_KEY, muted ? '1' : '0'); $('muteBtn').textContent = muted ? '🔇' : '🔊'; };
+$('muteBtn').textContent = muted ? '🔇' : '🔊';
+function toast(s){ const el = $('toast'); el.textContent = s; el.classList.add('show'); setTimeout(() => el.classList.remove('show'), 1800); }
+$('shareBtn').onclick = async () => {
+  const text = mode === 'stage'
+    ? `ぶらんこジャンプ ステージ${stageNo}「${stageDef(stageNo).name}」 ${P && P.plat && P.plat.kind === 'goal' ? 'クリア！' : 'で' + dist() + 'm'}`
+    : `ぶらんこジャンプ エンドレスで ${dist()}m 行けた！`;
+  try { if (navigator.share) { await navigator.share({text}); return; } } catch { return; }
+  try { await navigator.clipboard.writeText(text); toast('コピーしました'); } catch { toast(text); }
+};
+
+layout(); refreshMenu();
+// 開始前の背景にコースを見せておく
+world = newWorld(Math.random); addPart(world, 0.2);
+P = {x:START_X, y:START_TOP - R, vx:0, vy:0, grounded:true, plat:world.plats[0]}; cam = -100;
+phase = 'menu';
+requestAnimationFrame(frame);
+
+// ---- テスト用の取っ手 ----
+window.__swing = {
+  get state(){ return {phase, mode, stageNo, x:P.x, y:P.y, vx:P.vx, vy:P.vy, grounded:P.grounded,
+    roped:!!rope && !rope.shooting, shooting:!!rope && rope.shooting, ropeL:rope && rope.L, ax:rope && rope.ax,
+    dist:dist(), goalX:world.goalX, extra, kind:P.plat && P.plat.kind}; },
+  start, press, release, aimInfo,
+  // 部品を指定して、テスト用のコースで始める
+  startCustom(secs, d, seed){
+    mode = 'stage'; stageNo = 1;
+    world = buildFromSecs(secs, d, mulberry32(seed || 1));
+    const sp = world.plats[0];
+    P = {x:START_X, y:sp.top - R, vx:0, vy:0, grounded:true, plat:sp};
+    rope = null; cam = P.x - 100; t = 0; maxX = P.x; particles = []; fx = []; holding = false; pressTimer = 0; extra = null;
+    phase = 'play'; $('menu').classList.remove('show'); $('over').classList.remove('show');
+  },
+  tick(n){ for (let i = 0; i < n; i++) update(DT); },
+  snap(){ return JSON.stringify({P:{x:P.x,y:P.y,vx:P.vx,vy:P.vy,grounded:P.grounded}, platIdx:P.plat ? world.plats.indexOf(P.plat) : -1,
+    blockIdx:P.plat && P.plat.w && !world.plats.includes(P.plat) ? world.blocks.indexOf(P.plat) : -1,
+    rope, t, phase, maxX, holding, pressTimer, deadTimer}); },
+  restore(s){ const o = JSON.parse(s);
+    P = Object.assign(o.P, {plat: o.platIdx >= 0 ? world.plats[o.platIdx] : (o.blockIdx >= 0 ? world.blocks[o.blockIdx] : null)});
+    rope = o.rope; t = o.t; phase = o.phase; maxX = o.maxX; holding = o.holding; pressTimer = o.pressTimer; deadTimer = o.deadTimer; },
+  mute(v){ muted = v; },
+  world(){ return world; },
+  stageCount: () => STAGES.length, secNames: () => SEC_NAMES, stageDef,
+  stageCleared: () => stageCleared,
+};
+})();
+</script>
+</body>
+</html>

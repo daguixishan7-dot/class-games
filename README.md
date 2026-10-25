@@ -1,12 +1,13 @@
 # クラスのゲーム
 
-クラスメートがスマホのブラウザで遊べるゲーム3つ。登録もダウンロードもいらない。
+クラスメートがスマホのブラウザで遊べるゲーム4つ。登録もダウンロードもいらない。
 
 | フォルダ | ゲーム | 人数 | 必要なもの |
 |---|---|---|---|
 | `blocks/` | スキマうめ（ブロックを置いて列を消す） | 1人 | なし |
 | `merge/` | 体育倉庫（同じボールをぶつけて合体） | 1人 | なし |
 | `draw/` | らくがき伝言（お題 → 絵 → 答え…の伝言ゲーム） | 2人〜 | Firebase（無料） |
+| `swing/` | ぶらんこジャンプ（天井にロープをつけて飛ぶ。エンドレス／ステージ） | 1人 | なし |
 
 スコアやベスト記録は、それぞれのスマホの中（localStorage）にだけ保存される。
 
@@ -29,6 +30,8 @@ Edge を自動で動かして確かめる。Playwright を入れた Python で�
 ```
 C:\Users\81909\.venvs\class-games\Scripts\python.exe tests\test_solo.py   # スキマうめ・体育倉庫
 C:\Users\81909\.venvs\class-games\Scripts\python.exe tests\test_draw.py   # らくがき伝言（3人ぶん）
+C:\Users\81909\.venvs\class-games\Scripts\python.exe tests\test_swing.py  # ぶらんこジャンプ（操作・ロープ・島・全ステージが作れるか）
+C:\Users\81909\.venvs\class-games\Scripts\python.exe tests\solve_swing.py stages 1 2 3   # ぶらんこジャンプ: クリアできる手順を、ロボットが先読みして探す（時間がかかる）
 ```
 
 画面の写真は `tests/shots/` に保存される（git には入れない）。
