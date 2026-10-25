@@ -101,13 +101,13 @@ header h1{font-size:16px;font-weight:700;letter-spacing:.05em}
 'use strict';
 // ---- 定数（長さの単位は「世界の px」。40px = 1m） ----
 const H = 600, CEIL = 50, WATER = 545, R = 11;
-const G = 1500, SUBSTEPS = 4, DT = 1/60;
-const DX = 1.0;                 // ロープののびる向き: 高さ1につき前へ1.0（約45度）
-const LMAX = 440;               // ロープの長さの上限（これより低い位置からはとどかない）
+const G = 1050, SUBSTEPS = 4, DT = 1/60;   // 重力。小さいほどゆっくり落ちる（前は 1500）
+const DX = 1.3;                 // ロープののびる向き: 高さ1につき前へ1.3（約52度。前は1.0）。大きいほどよく振れる
+const LMAX = 480;               // ロープの長さの上限（これより低い位置からはとどかない。いちばん下でも水面より上: 50+480=530 < 545）
 const SHOT_SPEED = 3200;        // ロープがのびる速さ px/秒
 const RELEASE_BOOST = 1.12;     // はなした瞬間に、飛ぶ勢いが少し強くなる
-const JUMP_VY = 560, JUMP_VX = 110;   // 立った所からロープを出したときのジャンプ
-const PAD_VY = 840;             // 島（ジャンプ台）をふんだときにはねる速さ
+const JUMP_VY = 470, JUMP_VX = 110;   // 立った所からロープを出したときのジャンプ
+const PAD_VY = 700;             // 島（ジャンプ台）をふんだときにはねる速さ
 const PX_M = 40;
 const BUFFER = 0.12;            // おすのが少し早くても受けつける秒数
 const START_TOP = 400, START_X = 130;
